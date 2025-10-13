@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { Search, Play, Download, Music, Pause, Volume2, Video, Headphones } from "lucide-react"
 import { Button } from "../components/ui/button"
