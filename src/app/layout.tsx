@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   generator: "AbdeMustafa",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon-192.png",
+    icon: "/favicon.ico",
   },
 };
 
