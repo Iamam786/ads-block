@@ -1,11 +1,15 @@
 /** @type {import('next').NextConfig} */
 import withPWAInit from "next-pwa";
 
+const isProd =
+  process.env.NODE_ENV === "production" &&
+  process.env.VERCEL_ENV === "production";
+
 const withPWA = withPWAInit({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: false
+  disable: !isProd,
 });
 const nextConfig = {
   eslint: {
