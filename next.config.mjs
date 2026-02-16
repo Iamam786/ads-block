@@ -1,12 +1,13 @@
 import withPWAInit from "next-pwa";
 
 const isDev = process.env.NODE_ENV === "development";
+console.log("NODE_ENV =", process.env.NODE_ENV);
 
 const withPWA = withPWAInit({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: isDev
+  disable: isDev,
 });
 
 const nextConfig = {
