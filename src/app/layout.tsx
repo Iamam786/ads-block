@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   description: "Youtube videos ads free streaming App",
   generator: "AbdeMustafa",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon-192.png",
+  },
 };
 
 export const viewport = {
