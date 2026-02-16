@@ -1,16 +1,26 @@
-import type { NextApiRequest, NextApiResponse } from "next";
+import { NextResponse } from "next/server";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).end();
-
-  const { videoId, format, quality } = req.body;
-  if (!videoId) return res.status(400).json({ error: "Missing id" });
-
+export async function POST(request: Request) {
   try {
+    const { videoId, format, quality } = await request.json();
+
+    if (!videoId) {
+      return NextResponse.json(
+        { error: "Missing id" },
+        { status: 400 }
+      );
+    }
+
     const api = "https://co.wuk.sh/api/json";
+
     const body = {
       url: `https://www.youtube.com/watch?v=${videoId}`,
-      vQuality: format === "audio" ? "worst" : quality === "highest" ? "best" : quality,
+      vQuality:
+        format === "audio"
+          ? "worst"
+          : quality === "highest"
+          ? "best"
+          : quality,
       aFormat: format === "audio" ? "mp3" : "best",
       filename: "media",
     };
@@ -20,12 +30,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+
     const data = await r.json();
 
-    if (data.status !== "ok" || !data.url?.length) throw new Error("API error");
+    if (data.status !== "ok" || !data.url?.length) {
+      throw new Error("API error");
+    }
 
-    res.json({ downloadUrl: data.url[0].url, filename: data.url[0].filename });
-  } catch {
-    res.status(500).json({ error: "Server error" });
+    return NextResponse.json({
+      downloadUrl: data.url[0].url,
+      filename: data.url[0].filename,
+    });
+
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    );
   }
 }
