@@ -1,18 +1,11 @@
-import withPWAInit from "next-pwa";
+import withPWA from "next-pwa";
 
-const withPWA = withPWAInit({
-  dest: "public",
-  register: true,
-  skipWaiting: true,
-  disable: false
-});
-
-/** @type {import('next').NextConfig} */
-const baseConfig = {
-  eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
-  images: { unoptimized: true },
+const nextConfig = {
   reactStrictMode: true,
 };
 
-export default withPWA(() => baseConfig);
+export default withPWA({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+})(nextConfig);
