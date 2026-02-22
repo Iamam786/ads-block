@@ -1,10 +1,8 @@
 "use client";
 
 import { Card } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Maximize2, Minimize2 } from "lucide-react";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface VideoPlayerProps {
   videoId: string;
@@ -16,8 +14,6 @@ export default function VideoPlayer({
   isPlaylist = false,
 }: VideoPlayerProps) {
   const [hydrated, setHydrated] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const lockOrientation = useCallback(
     async (mode: "portrait" | "landscape") => {
@@ -47,11 +43,16 @@ export default function VideoPlayer({
   }, []);
 
   useEffect(() => {
+    void lockOrientation("portrait");
+  }, [lockOrientation]);
+
+  useEffect(() => {
     const onFullscreenChange = () => {
       const fullscreenActive = Boolean(document.fullscreenElement);
-      setIsFullscreen(fullscreenActive);
 
-      if (!fullscreenActive) {
+      if (fullscreenActive) {
+        void lockOrientation("landscape");
+      } else {
         void lockOrientation("portrait");
       }
     };
@@ -61,27 +62,6 @@ export default function VideoPlayer({
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
   }, [lockOrientation]);
-
-  const handleZoomToggle = async () => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    if (!document.fullscreenElement) {
-      try {
-        await container.requestFullscreen();
-        await lockOrientation("landscape");
-      } catch {
-        // Fullscreen may fail without a direct user gesture.
-      }
-      return;
-    }
-
-    try {
-      await document.exitFullscreen();
-    } catch {
-      // Ignore if fullscreen exit is unavailable.
-    }
-  };
 
   if (!hydrated) {
     // simple fallback during SSR (avoids mismatch)
@@ -93,16 +73,12 @@ export default function VideoPlayer({
   }
 
   const src = isPlaylist
-    ? `https://www.youtube.com/embed/videoseries?list=${videoId}&autoplay=1&playsinline=1&rel=0&modestbranding=1&fs=0`
-    : `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1&fs=0`;
+    ? `https://www.youtube.com/embed/videoseries?list=${videoId}&autoplay=1&playsinline=1&rel=0&modestbranding=1`
+    : `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
 
   return (
     <Card className="overflow-hidden bg-card border-border">
-      <div
-        ref={containerRef}
-        className="relative w-full"
-        style={{ paddingBottom: "56.25%" }}
-      >
+      <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
         <iframe
           key={videoId} // force re-render when switching
           className="absolute top-0 left-0 w-full h-full"
@@ -111,21 +87,6 @@ export default function VideoPlayer({
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
         />
-        <Button
-          type="button"
-          size="icon"
-          variant="secondary"
-          onClick={handleZoomToggle}
-          className="absolute bottom-3 right-3 z-10 bg-black/60 text-white hover:bg-black/80"
-          aria-label={isFullscreen ? "Exit zoom mode" : "Enter zoom mode"}
-          title={isFullscreen ? "Exit zoom mode" : "Enter zoom mode"}
-        >
-          {isFullscreen ? (
-            <Minimize2 className="h-4 w-4" />
-          ) : (
-            <Maximize2 className="h-4 w-4" />
-          )}
-        </Button>
       </div>
 
       {isPlaylist && (
