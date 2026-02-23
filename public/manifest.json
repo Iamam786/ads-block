@@ -3,10 +3,10 @@
   "short_name": "Yt block",
   "description": "Yt ads block",
   "display": "standalone",
-  "start_url": "/",
   "scope": "/",
   "orientation": "portrait",
-  "id": "",
+  "start_url": "/?v=2",
+  "id": "/",
   "lang": "en",
   "dir": "auto",
   "icons": [
