@@ -2,7 +2,7 @@
 
 import { Card } from "../components/ui/card";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface VideoPlayerProps {
   videoId: string;
@@ -15,53 +15,12 @@ export default function VideoPlayer({
 }: VideoPlayerProps) {
   const [hydrated, setHydrated] = useState(false);
 
-  const lockOrientation = useCallback(
-    async (mode: "portrait" | "landscape") => {
-      if (typeof window === "undefined") return;
-
-      const orientationApi = screen.orientation as
-        | (ScreenOrientation & {
-            lock?: (orientation: "portrait" | "landscape") => Promise<void>;
-          })
-        | undefined;
-      if (!orientationApi || typeof orientationApi.lock !== "function") return;
-
-      try {
-        await orientationApi.lock(mode);
-      } catch {
-        // Ignore unsupported lock failures on some mobile browsers.
-      }
-    },
-    []
-  );
-
   useEffect(() => setHydrated(true), []);
 
   useEffect(() => {
     // ensures component only renders iframe after hydration
     setHydrated(true);
   }, []);
-
-  useEffect(() => {
-    void lockOrientation("portrait");
-  }, [lockOrientation]);
-
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      const fullscreenActive = Boolean(document.fullscreenElement);
-
-      if (fullscreenActive) {
-        void lockOrientation("landscape");
-      } else {
-        void lockOrientation("portrait");
-      }
-    };
-
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
-    };
-  }, [lockOrientation]);
 
   if (!hydrated) {
     // simple fallback during SSR (avoids mismatch)

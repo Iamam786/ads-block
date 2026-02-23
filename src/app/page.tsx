@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Search,
   Play,
@@ -48,6 +48,27 @@ export default function YouTubeViewer() {
   const playerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isPlaylist, setIsPlaylist] = useState(false);
+
+  const lockOrientation = useCallback(
+    async (mode: "portrait" | "landscape") => {
+      if (typeof window === "undefined") return;
+
+      const orientationApi = screen.orientation as
+        | (ScreenOrientation & {
+            lock?: (orientation: "portrait" | "landscape") => Promise<void>;
+          })
+        | undefined;
+
+      if (!orientationApi || typeof orientationApi.lock !== "function") return;
+
+      try {
+        await orientationApi.lock(mode);
+      } catch {
+        // Ignore unsupported orientation lock failures.
+      }
+    },
+    []
+  );
 
   const extractVideoId = (url: string) => {
     // 🎯 First check for Playlist
@@ -209,6 +230,21 @@ export default function YouTubeViewer() {
       firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
     }
   }, []);
+
+  useEffect(() => {
+    // Keep app portrait by default. Allow landscape only in fullscreen.
+    void lockOrientation("portrait");
+
+    const onFullscreenChange = () => {
+      const fullscreenActive = Boolean(document.fullscreenElement);
+      void lockOrientation(fullscreenActive ? "landscape" : "portrait");
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, [lockOrientation]);
 
   useEffect(() => {
     if (audioMode && videoId && !player && window.YT) {
