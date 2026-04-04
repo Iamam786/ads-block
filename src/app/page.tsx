@@ -7,10 +7,7 @@ import {
   Play,
   Download,
   Music,
-  Pause,
-  Volume2,
-  Video,
-  Headphones,
+  Loader2,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -21,6 +18,7 @@ import PopularVideos from "../components/PopularVideos";
 import Header from "../components/Header";
 import AudioPlayer from "../components/AudioPlayer";
 import VideoPlayer from "../components/VideoPlayer";
+import SearchResults from "../components/SearchResults";
 
 declare global {
   interface Window {
@@ -34,10 +32,7 @@ export default function YouTubeViewer() {
   const [searchInput, setSearchInput] = useState("");
   const [audioMode, setAudioMode] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
-  const [downloadFormat, setDownloadFormat] = useState<"video" | "audio">(
-    "video"
-  );
+  const [downloadFormat, setDownloadFormat] = useState<"video" | "audio">("video");
   const [videoQuality, setVideoQuality] = useState("720");
 
   const [player, setPlayer] = useState<any>(null);
@@ -64,20 +59,18 @@ export default function YouTubeViewer() {
       try {
         await orientationApi.lock(mode);
       } catch {
-        // Ignore unsupported orientation lock failures.
+        // Ignore
       }
     },
     []
   );
 
   const extractVideoId = (url: string) => {
-    // 🎯 First check for Playlist
     const playlistMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
     if (playlistMatch) {
       return { type: "playlist", id: playlistMatch[1] };
     }
 
-    // 🎥 Otherwise normal video
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
       /^([a-zA-Z0-9_-]{11})$/,
@@ -90,7 +83,6 @@ export default function YouTubeViewer() {
     return null;
   };
 
-  // ✅ handle search submit
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const result = extractVideoId(searchInput);
@@ -102,16 +94,22 @@ export default function YouTubeViewer() {
     if (player) player.destroy();
   };
 
+  // Search results se video select karo
+  const handleSelectFromSearch = (videoId: string) => {
+    setVideoId(videoId);
+    setSearchInput("");
+    setAudioMode(false);
+    if (player) player.destroy();
+  };
+
   const handleDownloadClick = () => {
     if (!videoId) return;
-    setShowDownloadDialog(true);
   };
 
   const handleDownload = async () => {
     if (!videoId) return;
 
     setDownloading(true);
-    setShowDownloadDialog(false);
 
     try {
       const params = new URLSearchParams({
@@ -120,20 +118,13 @@ export default function YouTubeViewer() {
         quality: downloadFormat === "video" ? videoQuality : "highest",
       });
 
-      console.log(
-        "[v0] Requesting download with params:",
-        Object.fromEntries(params)
-      );
       const response = await fetch(`/api/download?${params}`);
       const data = await response.json();
-      console.log("[v0] Download API response:", data);
 
       if (data.success && data.downloadUrl) {
         if (data.fallback) {
-          // If it's a fallback, open in new tab
           window.open(data.downloadUrl, "_blank");
         } else {
-          // Try direct download
           const link = document.createElement("a");
           link.href = data.downloadUrl;
           link.download =
@@ -145,14 +136,12 @@ export default function YouTubeViewer() {
           document.body.removeChild(link);
         }
       } else {
-        alert(
-          data.error || "Download failed. Opening download page in new tab."
-        );
+        alert(data.error || "Download failed");
         window.open(`https://www.y2mate.com/youtube/${videoId}`, "_blank");
       }
     } catch (error) {
-      console.error("[v0] Download error:", error);
-      alert("Download failed. Opening download page in new tab.");
+      console.error("Download error:", error);
+      alert("Download failed");
       window.open(`https://www.y2mate.com/youtube/${videoId}`, "_blank");
     } finally {
       setDownloading(false);
@@ -204,24 +193,6 @@ export default function YouTubeViewer() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const popularVideos = [
-    {
-      id: "dQw4w9WgXcQ",
-      title: "Popular Music Video",
-      thumbnail: "/music-video-thumbnail.png",
-    },
-    {
-      id: "jNQXAC9IVRw",
-      title: "Me at the zoo",
-      thumbnail: "/first-youtube-video.jpg",
-    },
-    {
-      id: "9bZkp7q19f0",
-      title: "Gangnam Style",
-      thumbnail: "/gangnam-style-inspired-thumbnail.png",
-    },
-  ];
-
   useEffect(() => {
     if (!window.YT) {
       const tag = document.createElement("script");
@@ -232,7 +203,6 @@ export default function YouTubeViewer() {
   }, []);
 
   useEffect(() => {
-    // Keep app portrait by default. Allow landscape only in fullscreen.
     void lockOrientation("portrait");
 
     const onFullscreenChange = () => {
@@ -263,7 +233,6 @@ export default function YouTubeViewer() {
             setIsPlaying(true);
             setDuration(event.target.getDuration());
 
-            // Update current time
             intervalRef.current = setInterval(() => {
               if (event.target.getCurrentTime) {
                 setCurrentTime(event.target.getCurrentTime());
@@ -293,7 +262,6 @@ export default function YouTubeViewer() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <Header />
 
       <main className="container mx-auto px-4 py-8">
@@ -304,7 +272,7 @@ export default function YouTubeViewer() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Paste YouTube URL or Video ID..."
+                placeholder="Search YouTube or paste URL/Video ID..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-12 h-14 text-lg bg-card border-border focus:border-primary transition-colors"
@@ -320,11 +288,17 @@ export default function YouTubeViewer() {
             </Button>
           </form>
           <p className="text-sm text-muted-foreground mt-4 text-center">
-            Supports: youtube.com/watch?v=..., youtu.be/..., or direct video ID
+            🔍 Type to search YouTube | Or paste: youtube.com/watch?v=... | youtu.be/... | Video ID
           </p>
         </div>
 
-        {/* Video Player or Audio Player */}
+        {/* Search Dropdown Results */}
+        <SearchResults
+          query={searchInput}
+          onSelectVideo={handleSelectFromSearch}
+        />
+
+        {/* Video Player Section */}
         {videoId ? (
           <div className="max-w-6xl mx-auto mb-12">
             {audioMode ? (
@@ -340,7 +314,6 @@ export default function YouTubeViewer() {
                 formatTime={formatTime}
               />
             ) : (
-              // <VideoPlayer {...{ videoId, setVideoId, setSearchInput, setAudioMode, player }} />
               <VideoPlayer
                 {...{
                   videoId,
@@ -357,7 +330,7 @@ export default function YouTubeViewer() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <div className="h-2 w-2 rounded-full bg-green-500" />
-                  Ad-free playback enabled
+                  Ad-free playback ✅
                 </div>
                 <div className="h-4 w-px bg-border" />
                 <div className="text-sm text-muted-foreground">
@@ -398,14 +371,13 @@ export default function YouTubeViewer() {
                   No video selected
                 </h2>
                 <p className="text-muted-foreground text-center max-w-md text-balance">
-                  Paste a YouTube URL above to start watching videos without ads
+                  🔎 Search YouTube or paste a link to start watching ads-free
                 </p>
               </div>
             </Card>
           </div>
         )}
 
-        {/* Popular Videos */}
         <PopularVideos
           setVideoId={setVideoId}
           setSearchInput={setSearchInput}
@@ -414,14 +386,10 @@ export default function YouTubeViewer() {
           setIsPlaylist={setIsPlaylist}
         />
 
-        {/* Features */}
         <Features />
       </main>
 
-      {/* Footer */}
       <Footer />
-
-      {/* Download Dialog */}
     </div>
   );
 }
