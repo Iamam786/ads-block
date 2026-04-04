@@ -34,12 +34,12 @@ export async function GET(request: Request) {
 
         const data = await response.json();
 
-        const videos = (data.items || []).map((video: any) => ({
-            id: video.id.videoId,
-            title: video.snippet.title,
-            thumbnail: video.snippet.thumbnails.default.url,
-            channel: video.snippet.channelTitle,
-        }));
+   const videos = (data.items || []).map((video: any) => ({
+    videoId: video.id.videoId,  // ✅ Changed from 'id' to 'videoId'
+    title: video.snippet.title,
+    thumbnail: video.snippet.thumbnails.medium.url,  // ✅ Changed from 'default' to 'medium'
+    channel: video.snippet.channelTitle,
+}));
 
         return NextResponse.json({
             videos,
