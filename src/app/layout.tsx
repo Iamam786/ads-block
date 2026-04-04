@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Yt Block App",
-  description: "A Next.js Progressive Web App",
+  description: "this app created by Iamam.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/icon-192x192.png",

@@ -60,7 +60,7 @@ export default function SearchResults({
         setIsLoadingMore(false);
       }
     },
-    [query]
+    [query],
   );
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function SearchResults({
   return (
     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}>
       <div
-        className="absolute top-24 left-1/2 transform -translate-x-1/2 w-full max-w-3xl max-h-[500px] bg-card border border-border rounded-lg shadow-lg overflow-hidden flex flex-col"
+        className="absolute top-39.5 left-1/2 transform -translate-x-1/2 w-full max-w-3xl max-h-[500px] bg-card border border-border rounded-lg shadow-lg overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}

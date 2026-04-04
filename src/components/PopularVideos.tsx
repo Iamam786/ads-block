@@ -8,6 +8,7 @@ export default function PopularVideos({
   setAudioMode,
   setIsPlaylist,
   player,
+  setPlayer,
 }: any) {
   const items = [
     {
@@ -45,7 +46,10 @@ export default function PopularVideos({
               setSearchInput(item.id);
               setAudioMode(false);
               setIsPlaylist(item.type === "playlist");
-              if (player) player.destroy();
+              if (player) {
+                player.destroy();
+                setPlayer(null);
+              }
             }}
           >
             <div className="relative aspect-video bg-muted">
