@@ -171,7 +171,7 @@ export default function YouTubeViewer() {
       if (player) player.destroy();
       setSearchInput("");
     } else {
-      // For text suggestions, we just set the input. 
+      // For text suggestions, we just set the input.
       // The user will click the search button to trigger the feed update.
       // Or we can trigger it immediately if that's preferred.
       // Based on user feedback: "search button pe click kiya to..."
@@ -396,16 +396,17 @@ export default function YouTubeViewer() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex gap-8 items-center justify-between">
-            <h1 className="text-2xl font-bold">
-              <span className="text-primary">Ad-Free</span> YouTube Viewer
+          <div className="flex md:gap-8 gap-1 items-center md:justify-between">
+            <h1 className="md:text-2xl font-bold">
+              <span className="text-primary">Ad-Free</span>{" "}
+              <span className="max-md:hidden"> YouTube Viewer</span>
             </h1>
 
             {/* ========================   SEARCH SECTION   ======================== */}
-            <div className="flex-1">
+            <div className="flex-1 max-md:w-full">
               <form onSubmit={handleSearch} className="flex gap-3">
                 <div className="relative flex-1">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  {/* <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" /> */}
                   <Input
                     type="text"
                     placeholder="Search YouTube or paste URL/Video ID..."
@@ -415,7 +416,7 @@ export default function YouTubeViewer() {
                       setShowSuggestions(true);
                     }}
                     onFocus={() => setShowSuggestions(true)}
-                    className="pl-12 focus:outline-none h-14 text-lg bg-card border-gray-800 border"
+                    className="md:pl-12 pl:2s focus:outline-none h-14  text-lg bg-card border-gray-800 border rounded-full"
                   />
                   <SearchSuggestions
                     query={searchInput}
@@ -427,7 +428,7 @@ export default function YouTubeViewer() {
                 <Button
                   type="submit"
                   size="lg"
-                  className="h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
+                  className="h-14 absolute right-2 px-8 bg-card border-l border-l-white hover:bg-primary/90 text-primary-foreground cursor-pointer"
                 >
                   <SearchIcon className="h-5 w-5" />
                 </Button>
@@ -438,7 +439,7 @@ export default function YouTubeViewer() {
               </p> */}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 max-md:hidden">
               <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
               <span className="text-sm text-muted-foreground">No Ads</span>
             </div>
