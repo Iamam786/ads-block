@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY?.trim()?.replace(/^["']|["']$/g, '');
 const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3/search';
 
 export async function GET(request: Request) {
@@ -29,7 +29,13 @@ export async function GET(request: Request) {
         const response = await fetch(`${YOUTUBE_API_URL}?${params.toString()}`);
         
         if (!response.ok) {
-            return NextResponse.json({ error: 'YouTube API error' }, { status: response.status });
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.error?.message || 'YouTube API error';
+            console.error('YouTube API error details:', errorData);
+            return NextResponse.json({ 
+                error: errorMessage,
+                details: errorData.error 
+            }, { status: response.status });
         }
 
         const data = await response.json();

@@ -12,9 +12,11 @@ interface VideoResult {
 export default function SearchResults({
   query,
   onSelectVideo,
+  searchTrigger = 0,
 }: {
   query: string;
   onSelectVideo: (videoId: string) => void;
+  searchTrigger?: number;
 }) {
   const [results, setResults] = useState<VideoResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,6 +27,8 @@ export default function SearchResults({
 
   const fetchResults = useCallback(
     async (pageToken?: string) => {
+      if (!query || query.length < 2) return;
+
       if (pageToken) {
         setIsLoadingMore(true);
       } else {
@@ -63,6 +67,13 @@ export default function SearchResults({
     [query],
   );
 
+  // Trigger search immediately when searchTrigger changes
+  useEffect(() => {
+    if (searchTrigger > 0 && query.length >= 2) {
+      fetchResults();
+    }
+  }, [searchTrigger, fetchResults, query]);
+
   useEffect(() => {
     if (!query || query.length < 2) {
       setResults([]);
@@ -73,7 +84,7 @@ export default function SearchResults({
 
     const timer = setTimeout(() => {
       fetchResults();
-    }, 500);
+    }, 1000); // Increased debounce to 1s to prioritize suggestions
 
     return () => clearTimeout(timer);
   }, [query, fetchResults]);
@@ -91,11 +102,11 @@ export default function SearchResults({
   return (
     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}>
       <div
-        className="absolute top-39.5 left-1/2 transform -translate-x-1/2 w-full max-w-3xl max-h-[500px] bg-card border border-border rounded-lg shadow-lg overflow-hidden flex flex-col"
+        className="absolute top-39.5 left-1/2 transform -translate-x-1/2 w-full max-w-3xl max-h-125 bg-card border border-border rounded-lg shadow-lg overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
-        <div className="flex justify-between items-center p-3 border-b border-border bg-muted/30 flex-shrink-0">
+        <div className="flex justify-between items-center p-3 border-b border-border bg-muted/30 shrink-0">
           <span className="text-sm font-medium text-foreground">
             Search Results ({results.length})
           </span>
@@ -136,7 +147,7 @@ export default function SearchResults({
                   <img
                     src={video.thumbnail}
                     alt={video.title}
-                    className="h-14 w-20 rounded object-cover flex-shrink-0"
+                    className="h-14 w-20 rounded object-cover shrink-0"
                     onError={(e) => {
                       e.currentTarget.src = "/placeholder.jpg";
                     }}
@@ -153,7 +164,7 @@ export default function SearchResults({
                   </div>
 
                   {/* Play icon */}
-                  <Play className="h-5 w-5 text-primary flex-shrink-0" />
+                  <Play className="h-5 w-5 text-primary shrink-0" />
                 </div>
               ))}
             </div>
