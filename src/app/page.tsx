@@ -404,9 +404,9 @@ export default function YouTubeViewer() {
 
             {/* ========================   SEARCH SECTION   ======================== */}
             <div className="flex-1 max-md:w-full">
-              <form onSubmit={handleSearch} className="flex gap-3">
+              <form onSubmit={handleSearch} className="flex gap-3 relative">
                 <div className="relative flex-1">
-                  {/* <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" /> */}
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
                     type="text"
                     placeholder="Search YouTube or paste URL/Video ID..."
@@ -428,15 +428,11 @@ export default function YouTubeViewer() {
                 <Button
                   type="submit"
                   size="lg"
-                  className="h-14 absolute right-2 px-8 bg-card border-l border-l-white hover:bg-primary/90 text-primary-foreground cursor-pointer"
+                  className="h-14 absolute right-0 rounded-r-full border border-l-gray-400 px-8 bg-card bo hover:bg-primary/90 text-primary-foreground cursor-pointer"
                 >
                   <SearchIcon className="h-5 w-5" />
                 </Button>
               </form>
-              {/* <p className="text-sm text-muted-foreground mt-4 text-center">
-                🔍 Type to search YouTube | Or paste: youtube.com/watch?v=... |
-                youtu.be/... | Video ID
-              </p> */}
             </div>
 
             <div className="flex items-center gap-2 max-md:hidden">
