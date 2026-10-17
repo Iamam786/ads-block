@@ -68,6 +68,7 @@ export default function VideoPlayer({
   const isPlayingRef = useRef(false);
   const wasPlayingWhenHiddenRef = useRef(false);
   const userPausedRef = useRef(false);
+  const currentPlaybackTimeRef = useRef(0);
   const zoom = usePinchZoom(containerRef);
 
   const displayTitle = title || "YouTube Video";
@@ -77,12 +78,24 @@ export default function VideoPlayer({
 
   useEffect(() => {
     setHydrated(true);
+    currentPlaybackTimeRef.current = 0;
     const url = createSilentAudioBlobUrl();
     setSilentAudioUrl(url);
 
     return () => {
       if (url) URL.revokeObjectURL(url);
     };
+  }, [videoId]);
+
+  // Track playback seconds continuously while video is playing
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (isPlayingRef.current && typeof document !== "undefined" && !document.hidden) {
+        currentPlaybackTimeRef.current += 1;
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
   }, []);
 
   const sendIframeCommand = useCallback((func: string, args: any = "") => {
@@ -117,9 +130,18 @@ export default function VideoPlayer({
             // PAUSED: Check if paused because phone was locked / tab minimized
             if (typeof document !== "undefined" && document.hidden) {
               // The phone locked or browser was minimized!
-              // DO NOT pause silentAudioRef! Keeping it playing prevents Android Chrome from dismissing the notification!
               wasPlayingWhenHiddenRef.current = true;
-              silentAudioRef.current?.play().catch(() => {});
+
+              // Immediately switch to real background audio stream so sound never stops!
+              if (bgAudioRef.current) {
+                bgAudioRef.current.currentTime = currentPlaybackTimeRef.current;
+                bgAudioRef.current.play().catch(() => {
+                  silentAudioRef.current?.play().catch(() => {});
+                });
+              } else {
+                silentAudioRef.current?.play().catch(() => {});
+              }
+
               if ("mediaSession" in navigator) {
                 navigator.mediaSession.playbackState = "playing";
               }
@@ -138,6 +160,7 @@ export default function VideoPlayer({
             isPlayingRef.current = false;
             silentAudioRef.current?.pause();
             bgAudioRef.current?.pause();
+            currentPlaybackTimeRef.current = 0;
             if ("mediaSession" in navigator) {
               navigator.mediaSession.playbackState = "none";
             }
@@ -174,17 +197,16 @@ export default function VideoPlayer({
         isPlayingRef.current = true;
         navigator.mediaSession.playbackState = "playing";
 
-        // Try resuming iframe (works in desktop site mode)
-        sendIframeCommand("playVideo");
-
-        // If screen is locked / document is hidden, also trigger native background audio stream
+        // If screen is locked / document is hidden, play native background audio stream
         // so that in mobile mode / PWA, sound plays even when iframe is blocked by mobile Chrome!
         if (typeof document !== "undefined" && document.hidden && bgAudioRef.current) {
+          bgAudioRef.current.currentTime = currentPlaybackTimeRef.current;
           bgAudioRef.current.play().catch(() => {
             silentAudioRef.current?.play().catch(() => {});
           });
         } else {
           silentAudioRef.current?.play().catch(() => {});
+          sendIframeCommand("playVideo");
         }
       });
 
@@ -200,6 +222,7 @@ export default function VideoPlayer({
 
       navigator.mediaSession.setActionHandler("seekbackward", () => {
         sendIframeCommand("seekTo", [-10, false]);
+        currentPlaybackTimeRef.current = Math.max(0, currentPlaybackTimeRef.current - 10);
         if (bgAudioRef.current) {
           bgAudioRef.current.currentTime = Math.max(0, bgAudioRef.current.currentTime - 10);
         }
@@ -207,8 +230,9 @@ export default function VideoPlayer({
 
       navigator.mediaSession.setActionHandler("seekforward", () => {
         sendIframeCommand("seekTo", [10, false]);
+        currentPlaybackTimeRef.current += 10;
         if (bgAudioRef.current) {
-          bgAudioRef.current.currentTime = bgAudioRef.current.currentTime + 10;
+          bgAudioRef.current.currentTime += 10;
         }
       });
     } catch (e) {
@@ -216,7 +240,7 @@ export default function VideoPlayer({
     }
   }, [displayTitle, displayChannel, displayThumbnail, sendIframeCommand]);
 
-  // Lock Screen / Background tab handling
+  // Lock Screen / Background tab handling (Automatic Audio Handoff on Screen Lock)
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -224,22 +248,35 @@ export default function VideoPlayer({
       if (document.hidden) {
         if (isPlayingRef.current && !userPausedRef.current) {
           wasPlayingWhenHiddenRef.current = true;
-          // Keep audio anchor playing so Android NEVER destroys the notification
-          silentAudioRef.current?.play().catch(() => {});
+
+          // Seamless background switch: Start native audio stream so sound does not stop!
+          if (bgAudioRef.current) {
+            bgAudioRef.current.currentTime = currentPlaybackTimeRef.current;
+            bgAudioRef.current.play().catch(() => {
+              silentAudioRef.current?.play().catch(() => {});
+            });
+          } else {
+            silentAudioRef.current?.play().catch(() => {});
+          }
+
+          if ("mediaSession" in navigator) {
+            navigator.mediaSession.playbackState = "playing";
+          }
         }
       } else {
         // Phone unlocked or browser reopened
         if (wasPlayingWhenHiddenRef.current) {
           wasPlayingWhenHiddenRef.current = false;
-          // If native bg audio was playing while screen was locked, sync time back to iframe
+          // If native bg audio was playing while screen was locked, sync time back to video iframe
           if (bgAudioRef.current && !bgAudioRef.current.paused) {
             const time = bgAudioRef.current.currentTime;
             bgAudioRef.current.pause();
             if (time > 0) {
+              currentPlaybackTimeRef.current = time;
               sendIframeCommand("seekTo", [time, true]);
             }
           }
-          // Immediately resume video playback in the iframe
+          // Resume video playback in the iframe
           sendIframeCommand("playVideo");
         }
       }
@@ -288,14 +325,14 @@ export default function VideoPlayer({
         ref={bgAudioRef}
         src={`/api/stream?type=audio&videoId=${videoId}`}
         playsInline
-        preload="none"
+        preload="auto"
       />
 
       {/* Top Banner - Mobile Zoom & Lock Screen Status */}
       <div className="flex items-center justify-between gap-2 p-2.5 bg-muted/50 border-b border-border">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Lock className="h-3.5 w-3.5 text-green-500" />
-          <span className="font-medium text-foreground">Lock Screen & Control Center Active</span>
+          <span className="font-medium text-foreground">Lock Screen Background Audio Enabled</span>
         </div>
         <div className="flex items-center gap-2">
           {zoom.scale > 1 && (
