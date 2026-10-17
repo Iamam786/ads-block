@@ -477,6 +477,23 @@ export default function YouTubeViewer() {
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
+              {/* <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (
+                    typeof window !== "undefined" &&
+                    typeof (window as any).triggerPWAInstall === "function"
+                  ) {
+                    (window as any).triggerPWAInstall();
+                  }
+                }}
+                className="gap-1.5 text-xs rounded-full border-primary/30 text-primary hover:bg-primary/10"
+                title="Install PWA App on your phone"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="max-sm:hidden">Install App</span>
+              </Button> */}
               {session?.user ? (
                 <>
                   <div className="flex items-center sm:gap-2 max-md:hidden">

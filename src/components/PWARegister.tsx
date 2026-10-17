@@ -1,22 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
+import PWAInstallPrompt from "./PWAInstallPrompt";
 
 export default function PWARegister() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
     const registerWorker = async () => {
       try {
         await navigator.serviceWorker.register("/sw.js");
       } catch (error) {
-        console.error("Service worker registration failed:", error);
+        // Safe warning on registration failure
+        console.debug("Service worker registration info:", error);
       }
     };
 
     void registerWorker();
   }, []);
 
-  return null;
+  return <PWAInstallPrompt />;
 }

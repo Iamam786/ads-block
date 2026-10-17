@@ -64,6 +64,7 @@ export default function VideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const silentAudioRef = useRef<HTMLAudioElement>(null);
+  const bgAudioRef = useRef<HTMLAudioElement>(null);
   const isPlayingRef = useRef(false);
   const wasPlayingWhenHiddenRef = useRef(false);
   const userPausedRef = useRef(false);
@@ -127,6 +128,7 @@ export default function VideoPlayer({
               isPlayingRef.current = false;
               userPausedRef.current = true;
               silentAudioRef.current?.pause();
+              bgAudioRef.current?.pause();
               if ("mediaSession" in navigator) {
                 navigator.mediaSession.playbackState = "paused";
               }
@@ -135,6 +137,7 @@ export default function VideoPlayer({
             // ENDED
             isPlayingRef.current = false;
             silentAudioRef.current?.pause();
+            bgAudioRef.current?.pause();
             if ("mediaSession" in navigator) {
               navigator.mediaSession.playbackState = "none";
             }
@@ -149,7 +152,7 @@ export default function VideoPlayer({
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  // Lock Screen MediaSession integration (Notification shade & Lock Screen widget)
+  // Lock Screen MediaSession integration (Control Center & Lock Screen widget)
   useEffect(() => {
     if (typeof window === "undefined" || !("mediaSession" in navigator)) return;
 
@@ -165,13 +168,24 @@ export default function VideoPlayer({
         ],
       });
 
-      // User taps "Play" on notification panel or lock screen
+      // User taps "Play" on notification panel, lock screen, or control center
       navigator.mediaSession.setActionHandler("play", () => {
         userPausedRef.current = false;
         isPlayingRef.current = true;
-        silentAudioRef.current?.play().catch(() => {});
-        sendIframeCommand("playVideo");
         navigator.mediaSession.playbackState = "playing";
+
+        // Try resuming iframe (works in desktop site mode)
+        sendIframeCommand("playVideo");
+
+        // If screen is locked / document is hidden, also trigger native background audio stream
+        // so that in mobile mode / PWA, sound plays even when iframe is blocked by mobile Chrome!
+        if (typeof document !== "undefined" && document.hidden && bgAudioRef.current) {
+          bgAudioRef.current.play().catch(() => {
+            silentAudioRef.current?.play().catch(() => {});
+          });
+        } else {
+          silentAudioRef.current?.play().catch(() => {});
+        }
       });
 
       // User taps "Pause" on notification panel or lock screen
@@ -179,16 +193,23 @@ export default function VideoPlayer({
         userPausedRef.current = true;
         isPlayingRef.current = false;
         silentAudioRef.current?.pause();
+        bgAudioRef.current?.pause();
         sendIframeCommand("pauseVideo");
         navigator.mediaSession.playbackState = "paused";
       });
 
       navigator.mediaSession.setActionHandler("seekbackward", () => {
         sendIframeCommand("seekTo", [-10, false]);
+        if (bgAudioRef.current) {
+          bgAudioRef.current.currentTime = Math.max(0, bgAudioRef.current.currentTime - 10);
+        }
       });
 
       navigator.mediaSession.setActionHandler("seekforward", () => {
         sendIframeCommand("seekTo", [10, false]);
+        if (bgAudioRef.current) {
+          bgAudioRef.current.currentTime = bgAudioRef.current.currentTime + 10;
+        }
       });
     } catch (e) {
       console.warn("MediaSession setup warning:", e);
@@ -210,6 +231,14 @@ export default function VideoPlayer({
         // Phone unlocked or browser reopened
         if (wasPlayingWhenHiddenRef.current) {
           wasPlayingWhenHiddenRef.current = false;
+          // If native bg audio was playing while screen was locked, sync time back to iframe
+          if (bgAudioRef.current && !bgAudioRef.current.paused) {
+            const time = bgAudioRef.current.currentTime;
+            bgAudioRef.current.pause();
+            if (time > 0) {
+              sendIframeCommand("seekTo", [time, true]);
+            }
+          }
           // Immediately resume video playback in the iframe
           sendIframeCommand("playVideo");
         }
@@ -254,11 +283,19 @@ export default function VideoPlayer({
         />
       )}
 
+      {/* Native background audio stream for PWA & mobile lock-screen playback */}
+      <audio
+        ref={bgAudioRef}
+        src={`/api/stream?type=audio&videoId=${videoId}`}
+        playsInline
+        preload="none"
+      />
+
       {/* Top Banner - Mobile Zoom & Lock Screen Status */}
       <div className="flex items-center justify-between gap-2 p-2.5 bg-muted/50 border-b border-border">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Lock className="h-3.5 w-3.5 text-green-500" />
-          <span className="font-medium text-foreground">Background Lock Screen Notification Active</span>
+          <span className="font-medium text-foreground">Lock Screen & Control Center Active</span>
         </div>
         <div className="flex items-center gap-2">
           {zoom.scale > 1 && (
@@ -272,8 +309,8 @@ export default function VideoPlayer({
           {onSwitchToAudio && (
             <button
               onClick={onSwitchToAudio}
-              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 bg-primary/10 hover:bg-primary/20 text-primary font-medium rounded-md transition-colors"
-              title="Switch to pure background audio mode"
+              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 bg-primary text-primary-foreground font-semibold rounded-md shadow-sm transition-transform active:scale-95"
+              title="Continuous background playback with screen turned off"
             >
               <Music className="h-3 w-3" />
               <span>Audio Mode</span>
