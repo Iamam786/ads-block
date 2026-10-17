@@ -740,6 +740,14 @@ export default function YouTubeViewer() {
                 setIsPlaylist={setIsPlaylist}
                 feedMode={feedMode}
                 searchQuery={activeSearchQuery}
+                onSelectVideo={(video) => {
+                  setCurrentVideoInfo({
+                    videoId: video.videoId,
+                    title: video.title,
+                    channel: video.channel,
+                    thumbnail: video.thumbnail,
+                  });
+                }}
               />
             </div>
           </div>
@@ -752,7 +760,6 @@ export default function YouTubeViewer() {
 
       {/* Hidden elements for blur processing */}
       <div ref={containerRef} className="hidden" />
-      <video ref={videoRefForBlur} className="hidden" />
     </div>
   );
 }

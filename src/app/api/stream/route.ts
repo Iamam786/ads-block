@@ -4,12 +4,13 @@ import ytdl from 'ytdl-core';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const videoId = searchParams.get('videoId');
+  const type = searchParams.get('type') || 'video'; // 'audio' or 'video'
 
   if (!videoId) {
     return NextResponse.json({ error: 'Video ID is required' }, { status: 400 });
   }
 
-  // Strategy 1: Attempt ytdl-core with combined audio/video MP4 formats
+  // Strategy 1: Attempt ytdl-core extraction
   try {
     const info = await ytdl.getInfo(videoId, {
       requestOptions: {
@@ -20,18 +21,26 @@ export async function GET(request: Request) {
       },
     });
 
-    let format = info.formats.find(
-      (f: any) => f.hasVideo && f.hasAudio && f.container === 'mp4' && !!f.url
-    );
+    let format: any = null;
 
-    if (!format) {
-      format = info.formats.find(
-        (f: any) => f.hasVideo && f.container === 'mp4' && !!f.url
-      );
-    }
-
-    if (!format) {
-      format = info.formats.find((f: any) => f.hasVideo && !!f.url);
+    if (type === 'audio') {
+      // Find best audio-only format for native background playback
+      format =
+        info.formats.find(
+          (f: any) => f.hasAudio && !f.hasVideo && (f.container === 'mp4' || f.container === 'm4a') && !!f.url
+        ) ||
+        info.formats.find((f: any) => f.hasAudio && !f.hasVideo && !!f.url) ||
+        info.formats.find((f: any) => f.hasAudio && !!f.url);
+    } else {
+      // Find combined video/mp4 format
+      format =
+        info.formats.find(
+          (f: any) => f.hasVideo && f.hasAudio && f.container === 'mp4' && !!f.url
+        ) ||
+        info.formats.find(
+          (f: any) => f.hasVideo && f.container === 'mp4' && !!f.url
+        ) ||
+        info.formats.find((f: any) => f.hasVideo && !!f.url);
     }
 
     if (format && format.url) {
@@ -39,7 +48,7 @@ export async function GET(request: Request) {
       if (response.ok && response.body) {
         return new Response(response.body, {
           headers: {
-            'Content-Type': 'video/mp4',
+            'Content-Type': type === 'audio' ? 'audio/mp4' : 'video/mp4',
             'Access-Control-Allow-Origin': '*',
             'Cache-Control': 'no-cache',
           },
@@ -65,22 +74,43 @@ export async function GET(request: Request) {
 
       if (res.ok) {
         const data = await res.json();
-        const videoStream =
-          data.videoStreams?.find(
-            (s: any) => s.mimeType?.includes('mp4') && s.videoOnly === false
-          ) ||
-          data.videoStreams?.find((s: any) => s.mimeType?.includes('mp4'));
 
-        if (videoStream?.url) {
-          const proxiedRes = await fetch(videoStream.url);
-          if (proxiedRes.ok && proxiedRes.body) {
-            return new Response(proxiedRes.body, {
-              headers: {
-                'Content-Type': 'video/mp4',
-                'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'no-cache',
-              },
-            });
+        if (type === 'audio') {
+          const audioStream =
+            data.audioStreams?.find(
+              (s: any) => s.mimeType?.includes('audio') || s.format === 'M4A'
+            ) || data.audioStreams?.[0];
+
+          if (audioStream?.url) {
+            const proxiedRes = await fetch(audioStream.url);
+            if (proxiedRes.ok && proxiedRes.body) {
+              return new Response(proxiedRes.body, {
+                headers: {
+                  'Content-Type': audioStream.mimeType || 'audio/mp4',
+                  'Access-Control-Allow-Origin': '*',
+                  'Cache-Control': 'no-cache',
+                },
+              });
+            }
+          }
+        } else {
+          const videoStream =
+            data.videoStreams?.find(
+              (s: any) => s.mimeType?.includes('mp4') && s.videoOnly === false
+            ) ||
+            data.videoStreams?.find((s: any) => s.mimeType?.includes('mp4'));
+
+          if (videoStream?.url) {
+            const proxiedRes = await fetch(videoStream.url);
+            if (proxiedRes.ok && proxiedRes.body) {
+              return new Response(proxiedRes.body, {
+                headers: {
+                  'Content-Type': 'video/mp4',
+                  'Access-Control-Allow-Origin': '*',
+                  'Cache-Control': 'no-cache',
+                },
+              });
+            }
           }
         }
       }
@@ -91,8 +121,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     {
-      error:
-        'Direct video stream unavailable. YouTube restricted direct streaming for this video.',
+      error: `Direct ${type} stream unavailable. YouTube restricted direct streaming for this item.`,
     },
     { status: 502 }
   );

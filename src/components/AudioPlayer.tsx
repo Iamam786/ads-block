@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Slider } from "./ui/slider";
@@ -42,7 +42,8 @@ export default function AudioPlayer({
   videoThumbnail,
   player,
 }: AudioPlayerProps) {
-  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const nativeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [useNativeStream, setUseNativeStream] = useState(true);
 
   const displayTitle = videoTitle || "YouTube Audio Stream";
   const displayChannel = videoChannel || "Ad-Free YouTube Viewer";
@@ -52,19 +53,29 @@ export default function AudioPlayer({
       ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
       : "/icon-192.png");
 
-  // Keep-alive silent audio to prevent mobile OS from freezing audio when screen is locked
+  // Synchronize native audio play/pause with isPlaying
   useEffect(() => {
-    const silentAudio = silentAudioRef.current;
-    if (!silentAudio) return;
+    const audio = nativeAudioRef.current;
+    if (!audio || !useNativeStream) return;
 
     if (isPlaying) {
-      silentAudio.play().catch(() => {
-        // Autoplay policy fallback
+      audio.play().catch(() => {
+        // Fallback to iframe if native stream blocked
+        if (player && typeof player.playVideo === "function") {
+          player.playVideo();
+        }
       });
     } else {
-      silentAudio.pause();
+      audio.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, useNativeStream, player]);
+
+  // Synchronize volume
+  useEffect(() => {
+    if (nativeAudioRef.current) {
+      nativeAudioRef.current.volume = volume / 100;
+    }
+  }, [volume]);
 
   // Lock Screen MediaSession integration (Android notification bar / iOS lock screen controls)
   useEffect(() => {
@@ -96,17 +107,28 @@ export default function AudioPlayer({
       navigator.mediaSession.setActionHandler("seekto", (details) => {
         if (details.seekTime !== undefined) {
           handleSeek([details.seekTime]);
+          if (nativeAudioRef.current) {
+            nativeAudioRef.current.currentTime = details.seekTime;
+          }
         }
       });
 
       navigator.mediaSession.setActionHandler("seekbackward", (details) => {
         const offset = details.seekOffset || 10;
-        handleSeek([Math.max(0, currentTime - offset)]);
+        const target = Math.max(0, currentTime - offset);
+        handleSeek([target]);
+        if (nativeAudioRef.current) {
+          nativeAudioRef.current.currentTime = target;
+        }
       });
 
       navigator.mediaSession.setActionHandler("seekforward", (details) => {
         const offset = details.seekOffset || 10;
-        handleSeek([Math.min(duration, currentTime + offset)]);
+        const target = Math.min(duration, currentTime + offset);
+        handleSeek([target]);
+        if (nativeAudioRef.current) {
+          nativeAudioRef.current.currentTime = target;
+        }
       });
     } catch (e) {
       console.warn("MediaSession setup warning:", e);
@@ -122,45 +144,21 @@ export default function AudioPlayer({
     togglePlayPause,
   ]);
 
-  // Lock screen / background tab auto-pause prevention
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-
-    const handleVisibilityChange = () => {
-      // When screen turns off or locks (visibility becomes hidden)
-      if (document.hidden && isPlaying && player) {
-        // YouTube iframe often tries to pause itself when visibility changes
-        setTimeout(() => {
-          try {
-            if (player && typeof player.playVideo === "function") {
-              player.playVideo();
-            }
-            if (silentAudioRef.current && silentAudioRef.current.paused) {
-              silentAudioRef.current.play().catch(() => {});
-            }
-          } catch (e) {
-            console.error("Lock mode audio recovery error:", e);
-          }
-        }, 150);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [isPlaying, player]);
-
   return (
     <Card className="overflow-hidden bg-card border-border p-6 md:p-8">
-      {/* Hidden audio element used as OS background keep-alive anchor */}
-      <audio
-        ref={silentAudioRef}
-        src={SILENT_AUDIO_DATA}
-        loop
-        playsInline
-        preload="auto"
-      />
+      {/* Native HTML5 Audio stream - Mobile OS NEVER kills this when screen locks */}
+      {videoId && useNativeStream && (
+        <audio
+          ref={nativeAudioRef}
+          src={`/api/stream?type=audio&videoId=${videoId}`}
+          playsInline
+          preload="auto"
+          onError={() => {
+            console.warn("Native audio stream unavailable, falling back to YouTube IFrame player");
+            setUseNativeStream(false);
+          }}
+        />
+      )}
 
       <div className="flex flex-col items-center text-center">
         {/* Cover Art / Icon */}
