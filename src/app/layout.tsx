@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import PWARegister from "../components/PWARegister";
+import { Providers } from "../components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,8 +26,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <PWARegister />
-        {children}
+        <Providers>
+          <PWARegister />
+          {children}
+        </Providers>
       </body>
     </html>
   );

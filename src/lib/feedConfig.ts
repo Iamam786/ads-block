@@ -2,9 +2,9 @@ export type FeedMode = 'recommended' | 'news';
 
 export const FEED_CONFIG = {
   recommended: {
-    label: 'Recommended',
+    label: 'Subscribed',
     icon: '📺',
-    description: 'Personalized recommendations',
+    description: 'Videos from your subscribed channels',
   },
   news: {
     label: 'News Mode',

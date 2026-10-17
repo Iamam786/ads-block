@@ -19,6 +19,7 @@ interface PopularVideosProps {
   setIsPlaylist: (isPlaylist: boolean) => void;
   feedMode: FeedMode;
   searchQuery?: string;
+  onSelectVideo?: (video: Video) => void;
 }
 
 export default function PopularVideos({
@@ -29,6 +30,7 @@ export default function PopularVideos({
   setIsPlaylist,
   feedMode,
   searchQuery = "",
+  onSelectVideo,
 }: PopularVideosProps) {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,17 +44,26 @@ export default function PopularVideos({
       if (query) {
         endpoint = `/api/youtube-search?query=${encodeURIComponent(query)}`;
       } else {
+        // If logged in and in 'popular' mode, show subscriptions
+        // If in 'news' mode, show news
         endpoint =
           currentMode === "news"
             ? "/api/youtube-search-news"
-            : "/api/youtube-search?query=trending";
+            : "/api/youtube-subscriptions";
       }
 
       const response = await fetch(endpoint);
       const data = await response.json();
 
       if (data.error) {
-        setError(data.error);
+        // If subscription API fails (e.g. not logged in), fallback to trending
+        if (endpoint === "/api/youtube-subscriptions") {
+           const fallbackResponse = await fetch("/api/youtube-search?query=trending");
+           const fallbackData = await fallbackResponse.json();
+           setVideos(fallbackData.videos || []);
+        } else {
+          setError(data.error);
+        }
       } else if (data.videos) {
         setVideos(data.videos);
       }
@@ -68,12 +79,13 @@ export default function PopularVideos({
     void fetchVideos(feedMode, searchQuery);
   }, [feedMode, searchQuery]);
 
-  const handleSelectVideo = (videoId: string) => {
-    setVideoId(videoId);
+  const handleSelectVideo = (video: Video) => {
+    setVideoId(video.videoId);
     setSearchInput("");
     setAudioMode(false);
     if (player) player.destroy();
     setIsPlaylist(false);
+    onSelectVideo?.(video);
   };
 
   return (
@@ -116,7 +128,7 @@ export default function PopularVideos({
               <Card
                 key={video.videoId}
                 className="cursor-pointer overflow-hidden border-border bg-card transition-all hover:shadow-2xl hover:-translate-y-1 group"
-                onClick={() => handleSelectVideo(video.videoId)}
+                onClick={() => handleSelectVideo(video)}
               >
                 <div className="relative bg-muted pb-[56.25%] overflow-hidden">
                   <img

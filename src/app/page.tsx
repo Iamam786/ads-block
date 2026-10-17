@@ -32,6 +32,8 @@ import type { FeedMode } from "../lib/feedConfig";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import SearchSuggestions from "../components/SearchSuggestions";
 
+import { useSession, signIn, signOut } from "next-auth/react";
+
 declare global {
   interface Window {
     YT: any;
@@ -40,6 +42,9 @@ declare global {
 }
 
 export default function YouTubeViewer() {
+  const { data: session, status } = useSession();
+  const isLoadingSession = status === "loading";
+
   // ========================
   // EXISTING STATE
   // ========================
@@ -65,6 +70,13 @@ export default function YouTubeViewer() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchTrigger, setSearchTrigger] = useState(0);
   const [activeSearchQuery, setActiveSearchQuery] = useState("");
+  const [currentVideoInfo, setCurrentVideoInfo] = useState<{
+    videoId: string;
+    title?: string;
+    channel?: string;
+    thumbnail?: string;
+  } | null>(null);
+  const [blurStreamError, setBlurStreamError] = useState<string | null>(null);
 
   // ========================
   // NEW STATE - FEATURE 2 (Feed Mode)
@@ -75,6 +87,13 @@ export default function YouTubeViewer() {
     isHydrated,
   } = useFeedMode();
 
+  // If user is not logged in and in 'recommended' mode, switch default to 'news'
+  useEffect(() => {
+    if (isHydrated && !session && feedMode === "recommended") {
+      updateFeedMode("news");
+    }
+  }, [isHydrated, session, feedMode, updateFeedMode]);
+
   // ========================
   // NEW STATE - FEATURE 3 (Human Blur)
   // ========================
@@ -83,6 +102,7 @@ export default function YouTubeViewer() {
     isLoading: blurLoading,
     enableBlur,
     disableBlur,
+    canvasRef: humanBlurCanvasRef,
   } = useHumanBlur(videoRefForBlur);
 
   const {
@@ -148,6 +168,12 @@ export default function YouTubeViewer() {
     const result = extractVideoId(searchInput);
     if (result) {
       setVideoId(result.id);
+      setCurrentVideoInfo({
+        videoId: result.id,
+        title: "YouTube Video",
+        channel: "Ad-Free Player",
+        thumbnail: `https://img.youtube.com/vi/${result.id}/hqdefault.jpg`,
+      });
       setIsPlaylist(result.type === "playlist");
       setAudioMode(false);
       if (player) player.destroy();
@@ -166,24 +192,30 @@ export default function YouTubeViewer() {
     const result = extractVideoId(suggestion);
     if (result) {
       setVideoId(result.id);
+      setCurrentVideoInfo({
+        videoId: result.id,
+        title: "YouTube Video",
+        channel: "Ad-Free Player",
+        thumbnail: `https://img.youtube.com/vi/${result.id}/hqdefault.jpg`,
+      });
       setIsPlaylist(result.type === "playlist");
       setAudioMode(false);
       if (player) player.destroy();
       setSearchInput("");
     } else {
-      // For text suggestions, we just set the input.
-      // The user will click the search button to trigger the feed update.
-      // Or we can trigger it immediately if that's preferred.
-      // Based on user feedback: "search button pe click kiya to..."
-      // But usually selecting a suggestion should also trigger search.
-      // I'll trigger it immediately to be user-friendly.
       setActiveSearchQuery(suggestion);
       setSearchTrigger((prev) => prev + 1);
     }
   };
 
-  const handleSelectFromSearch = (videoId: string) => {
+  const handleSelectFromSearch = (videoId: string, title?: string, channel?: string, thumbnail?: string) => {
     setVideoId(videoId);
+    setCurrentVideoInfo({
+      videoId,
+      title: title || "YouTube Video",
+      channel: channel || "Ad-Free Player",
+      thumbnail: thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    });
     setSearchInput("");
     setAudioMode(false);
     if (player) player.destroy();
@@ -392,18 +424,26 @@ export default function YouTubeViewer() {
     };
   }, [audioMode, videoId]);
 
+  if (isLoadingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex md:gap-8 gap-1 items-center md:justify-between">
-            <h1 className="md:text-2xl font-bold">
+          <div className="flex md:gap-8 gap-2 items-center justify-between">
+            <h1 className="md:text-2xl font-bold shrink-0">
               <span className="text-primary">Ad-Free</span>{" "}
               <span className="max-md:hidden"> YouTube Viewer</span>
             </h1>
 
             {/* ========================   SEARCH SECTION   ======================== */}
-            <div className="flex-1 max-md:w-full">
+            <div className="flex-1 max-w-2xl mx-2">
               <form onSubmit={handleSearch} className="flex gap-3 relative">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -416,7 +456,7 @@ export default function YouTubeViewer() {
                       setShowSuggestions(true);
                     }}
                     onFocus={() => setShowSuggestions(true)}
-                    className="md:pl-12 pl:2s focus:outline-none h-14  text-lg bg-card border-gray-800 border rounded-full"
+                    className="pl-12 focus:outline-none h-12 md:h-14 text-sm md:text-base bg-card border-gray-800 border rounded-full pr-14"
                   />
                   <SearchSuggestions
                     query={searchInput}
@@ -428,16 +468,40 @@ export default function YouTubeViewer() {
                 <Button
                   type="submit"
                   size="lg"
-                  className="h-14 absolute right-0 rounded-r-full border border-l-gray-400 px-8 bg-card bo hover:bg-primary/90 text-primary-foreground cursor-pointer"
+                  className="h-12 md:h-14 absolute right-0 rounded-r-full border border-l-gray-400 px-5 md:px-7 bg-card hover:bg-primary/90 text-primary-foreground cursor-pointer"
                 >
                   <SearchIcon className="h-5 w-5" />
                 </Button>
               </form>
             </div>
 
-            <div className="flex items-center gap-2 max-md:hidden">
-              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-sm text-muted-foreground">No Ads</span>
+            <div className="flex items-center gap-3 shrink-0">
+              {session?.user ? (
+                <>
+                  <div className="flex items-center gap-2 max-md:hidden">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <span className="text-sm text-muted-foreground truncate max-w-[150px]">
+                      {session.user.email}
+                    </span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => signOut()}
+                    className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  onClick={() => signIn("google")}
+                  size="sm"
+                  className="text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-4"
+                >
+                  Sign in with Google
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -634,7 +698,7 @@ export default function YouTubeViewer() {
                     ? `🔍 Results for "${activeSearchQuery}"`
                     : feedMode === "news"
                       ? "📰 Latest News Videos"
-                      : "📺 Popular Videos"}
+                      : "📺 Subscribed Feed"}
                 </h2>
 
                 {/* Feed Mode Toggle */}
