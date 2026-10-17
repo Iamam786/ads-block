@@ -13,6 +13,7 @@ import {
   Zap,
   Info,
   SearchIcon,
+  LogOutIcon,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -435,16 +436,16 @@ export default function YouTubeViewer() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex md:gap-8 gap-2 items-center justify-between">
+        <div className="container mx-auto sm:px-4 py-4 ">
+          <div className="flex md:gap-8 gap-0.5 items-center justify-between">
             <h1 className="md:text-2xl font-bold shrink-0">
               <span className="text-primary">Ad-Free</span>{" "}
               <span className="max-md:hidden"> YouTube Viewer</span>
             </h1>
 
             {/* ========================   SEARCH SECTION   ======================== */}
-            <div className="flex-1 max-w-2xl mx-2">
-              <form onSubmit={handleSearch} className="flex gap-3 relative">
+            <div className="flex-1 max-w-2xl sm:mx-2">
+              <form onSubmit={handleSearch} className="flex sm:gap-3 relative">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
@@ -478,7 +479,7 @@ export default function YouTubeViewer() {
             <div className="flex items-center gap-3 shrink-0">
               {session?.user ? (
                 <>
-                  <div className="flex items-center gap-2 max-md:hidden">
+                  <div className="flex items-center sm:gap-2 max-md:hidden">
                     <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                     <span className="text-sm text-muted-foreground truncate max-w-[150px]">
                       {session.user.email}
@@ -490,7 +491,7 @@ export default function YouTubeViewer() {
                     onClick={() => signOut()}
                     className="text-xs text-muted-foreground hover:text-destructive transition-colors"
                   >
-                    Sign Out
+                   <span className="max-md:hidden">Sign Out</span><LogOutIcon/>
                   </Button>
                 </>
               ) : (
@@ -525,6 +526,11 @@ export default function YouTubeViewer() {
                 handleVolumeChange={handleVolumeChange}
                 togglePlayPause={togglePlayPause}
                 formatTime={formatTime}
+                videoId={videoId}
+                videoTitle={currentVideoInfo?.title}
+                videoChannel={currentVideoInfo?.channel}
+                videoThumbnail={currentVideoInfo?.thumbnail}
+                player={player}
               />
             ) : (
               <>
@@ -611,15 +617,29 @@ export default function YouTubeViewer() {
                         playsInline
                         controls
                         crossOrigin="anonymous"
+                        onError={() => {
+                          setBlurStreamError(
+                            "Direct video stream is unavailable for this video (YouTube restricted raw stream). Reverting to standard ad-free player."
+                          );
+                          disableBlur();
+                          disableFaceBlur();
+                          setIsStreaming(false);
+                        }}
                       />
-                      {/* Blur Canvas Overlay */}
+                      {/* Blur Canvas Overlay for both Human and Face Blur */}
                       <canvas
-                        ref={faceBlurCanvasRef}
+                        ref={blurEnabled ? humanBlurCanvasRef : faceBlurCanvasRef}
                         className="absolute inset-0 w-full h-full pointer-events-none z-10"
                       />
                     </div>
                   ) : (
-                    <VideoPlayer videoId={videoId} isPlaylist={isPlaylist} />
+                    <VideoPlayer
+                      videoId={videoId}
+                      isPlaylist={isPlaylist}
+                      title={currentVideoInfo?.title}
+                      channel={currentVideoInfo?.channel}
+                      thumbnail={currentVideoInfo?.thumbnail}
+                    />
                   )}
                 </div>
               </>
