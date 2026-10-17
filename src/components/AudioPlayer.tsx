@@ -1,13 +1,42 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Slider } from "./ui/slider";
 import { Play, Pause, Volume2, Music, Lock, Radio } from "lucide-react";
 
-// Minimal valid silent WAV to anchor background audio on mobile lock screen
-const SILENT_AUDIO_DATA =
-  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+// Generate a valid 3-second silent PCM WAV Blob URL to maintain Android Audio Focus
+function createSilentAudioBlobUrl(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const sampleRate = 8000;
+    const durationSec = 3;
+    const numSamples = durationSec * sampleRate;
+    const buffer = new ArrayBuffer(44 + numSamples);
+    const view = new DataView(buffer);
+
+    view.setUint32(0, 0x52494646, false); // "RIFF"
+    view.setUint32(4, 36 + numSamples, true);
+    view.setUint32(8, 0x57415645, false); // "WAVE"
+    view.setUint32(12, 0x666d7420, false); // "fmt "
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // Mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate, true);
+    view.setUint16(32, 1, true);
+    view.setUint16(34, 8, true);
+    view.setUint32(36, 0x64617461, false); // "data"
+    view.setUint32(40, numSamples, true);
+
+    new Uint8Array(buffer, 44).fill(128);
+
+    const blob = new Blob([buffer], { type: "audio/wav" });
+    return URL.createObjectURL(blob);
+  } catch {
+    return "";
+  }
+}
 
 interface AudioPlayerProps {
   playerRef: any;
@@ -43,7 +72,9 @@ export default function AudioPlayer({
   player,
 }: AudioPlayerProps) {
   const nativeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const silentAnchorRef = useRef<HTMLAudioElement | null>(null);
   const [useNativeStream, setUseNativeStream] = useState(true);
+  const [silentAudioUrl, setSilentAudioUrl] = useState("");
 
   const displayTitle = videoTitle || "YouTube Audio Stream";
   const displayChannel = videoChannel || "Ad-Free YouTube Viewer";
@@ -53,20 +84,39 @@ export default function AudioPlayer({
       ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
       : "/icon-192.png");
 
-  // Synchronize native audio play/pause with isPlaying
+  useEffect(() => {
+    const url = createSilentAudioBlobUrl();
+    setSilentAudioUrl(url);
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, []);
+
+  // Synchronize audio play/pause with isPlaying
   useEffect(() => {
     const audio = nativeAudioRef.current;
-    if (!audio || !useNativeStream) return;
+    const anchor = silentAnchorRef.current;
 
     if (isPlaying) {
-      audio.play().catch(() => {
-        // Fallback to iframe if native stream blocked
-        if (player && typeof player.playVideo === "function") {
-          player.playVideo();
-        }
-      });
+      anchor?.play().catch(() => {});
+      if (audio && useNativeStream) {
+        audio.play().catch(() => {
+          // If native stream fails, fallback to YouTube player
+          if (player && typeof player.playVideo === "function") {
+            player.playVideo();
+          }
+        });
+      } else if (player && typeof player.playVideo === "function") {
+        player.playVideo();
+      }
     } else {
-      audio.pause();
+      anchor?.pause();
+      if (audio) {
+        audio.pause();
+      }
+      if (player && typeof player.pauseVideo === "function") {
+        player.pauseVideo();
+      }
     }
   }, [isPlaying, useNativeStream, player]);
 
@@ -97,6 +147,7 @@ export default function AudioPlayer({
       navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
 
       navigator.mediaSession.setActionHandler("play", () => {
+        silentAnchorRef.current?.play().catch(() => {});
         togglePlayPause();
       });
 
@@ -146,6 +197,17 @@ export default function AudioPlayer({
 
   return (
     <Card className="overflow-hidden bg-card border-border p-6 md:p-8">
+      {/* Background audio anchor element to keep mobile audio focus permanently pinned in Android shade */}
+      {silentAudioUrl && (
+        <audio
+          ref={silentAnchorRef}
+          src={silentAudioUrl}
+          loop
+          playsInline
+          preload="auto"
+        />
+      )}
+
       {/* Native HTML5 Audio stream - Mobile OS NEVER kills this when screen locks */}
       {videoId && useNativeStream && (
         <audio
@@ -154,7 +216,7 @@ export default function AudioPlayer({
           playsInline
           preload="auto"
           onError={() => {
-            console.warn("Native audio stream unavailable, falling back to YouTube IFrame player");
+            console.warn("Native audio stream unavailable, switching to player stream");
             setUseNativeStream(false);
           }}
         />
@@ -189,9 +251,9 @@ export default function AudioPlayer({
         </p>
 
         {/* Lock Screen Support Indicator */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-6">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 text-xs font-medium mb-6">
           <Lock className="h-3.5 w-3.5" />
-          <span>Screen Lock Mode Enabled • Plays in background</span>
+          <span>Screen Lock Mode Active • Plays continuously in background</span>
         </div>
 
         {/* Audio Controls */}

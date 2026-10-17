@@ -639,6 +639,7 @@ export default function YouTubeViewer() {
                       title={currentVideoInfo?.title}
                       channel={currentVideoInfo?.channel}
                       thumbnail={currentVideoInfo?.thumbnail}
+                      onSwitchToAudio={toggleAudioMode}
                     />
                   )}
                 </div>

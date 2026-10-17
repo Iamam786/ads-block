@@ -5,6 +5,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const videoId = searchParams.get('videoId');
   const type = searchParams.get('type') || 'video'; // 'audio' or 'video'
+  const wantJson = searchParams.get('format') === 'json';
 
   if (!videoId) {
     return NextResponse.json({ error: 'Video ID is required' }, { status: 400 });
@@ -24,7 +25,6 @@ export async function GET(request: Request) {
     let format: any = null;
 
     if (type === 'audio') {
-      // Find best audio-only format for native background playback
       format =
         info.formats.find(
           (f: any) => f.hasAudio && !f.hasVideo && (f.container === 'mp4' || f.container === 'm4a') && !!f.url
@@ -32,7 +32,6 @@ export async function GET(request: Request) {
         info.formats.find((f: any) => f.hasAudio && !f.hasVideo && !!f.url) ||
         info.formats.find((f: any) => f.hasAudio && !!f.url);
     } else {
-      // Find combined video/mp4 format
       format =
         info.formats.find(
           (f: any) => f.hasVideo && f.hasAudio && f.container === 'mp4' && !!f.url
@@ -44,32 +43,28 @@ export async function GET(request: Request) {
     }
 
     if (format && format.url) {
-      const response = await fetch(format.url);
-      if (response.ok && response.body) {
-        return new Response(response.body, {
-          headers: {
-            'Content-Type': type === 'audio' ? 'audio/mp4' : 'video/mp4',
-            'Access-Control-Allow-Origin': '*',
-            'Cache-Control': 'no-cache',
-          },
-        });
+      if (wantJson) {
+        return NextResponse.json({ url: format.url });
       }
+      return NextResponse.redirect(format.url, { status: 307 });
     }
-  } catch (ytdlError) {
-    console.warn('ytdl-core extraction attempt failed:', ytdlError);
+  } catch {
+    // Continue to public streaming endpoints
   }
 
-  // Strategy 2: Fallback to public streaming proxy instances
-  const streamInstances = [
-    `https://pipedapi.kavin.rocks/streams/${videoId}`,
+  // Strategy 2: Fallback to fast public Piped instances
+  const pipedInstances = [
+    `https://pipedapi.adminforge.de/streams/${videoId}`,
+    `https://pipedapi.leptons.xyz/streams/${videoId}`,
     `https://api.piped.private.coffee/streams/${videoId}`,
-    `https://piped-api.lunar.icu/streams/${videoId}`,
+    `https://piped-api.garudalinux.org/streams/${videoId}`,
+    `https://api-piped.mha.fi/streams/${videoId}`,
   ];
 
-  for (const endpoint of streamInstances) {
+  for (const endpoint of pipedInstances) {
     try {
       const res = await fetch(endpoint, {
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(3500),
       });
 
       if (res.ok) {
@@ -82,16 +77,10 @@ export async function GET(request: Request) {
             ) || data.audioStreams?.[0];
 
           if (audioStream?.url) {
-            const proxiedRes = await fetch(audioStream.url);
-            if (proxiedRes.ok && proxiedRes.body) {
-              return new Response(proxiedRes.body, {
-                headers: {
-                  'Content-Type': audioStream.mimeType || 'audio/mp4',
-                  'Access-Control-Allow-Origin': '*',
-                  'Cache-Control': 'no-cache',
-                },
-              });
+            if (wantJson) {
+              return NextResponse.json({ url: audioStream.url });
             }
+            return NextResponse.redirect(audioStream.url, { status: 307 });
           }
         } else {
           const videoStream =
@@ -101,16 +90,64 @@ export async function GET(request: Request) {
             data.videoStreams?.find((s: any) => s.mimeType?.includes('mp4'));
 
           if (videoStream?.url) {
-            const proxiedRes = await fetch(videoStream.url);
-            if (proxiedRes.ok && proxiedRes.body) {
-              return new Response(proxiedRes.body, {
-                headers: {
-                  'Content-Type': 'video/mp4',
-                  'Access-Control-Allow-Origin': '*',
-                  'Cache-Control': 'no-cache',
-                },
-              });
+            if (wantJson) {
+              return NextResponse.json({ url: videoStream.url });
             }
+            return NextResponse.redirect(videoStream.url, { status: 307 });
+          }
+        }
+      }
+    } catch {
+      // Continue to next instance
+    }
+  }
+
+  // Strategy 3: Fallback to Invidious instances
+  const invidiousInstances = [
+    `https://inv.nadeko.net/api/v1/videos/${videoId}`,
+    `https://yt.artemislena.eu/api/v1/videos/${videoId}`,
+    `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
+    `https://invidious.drgns.space/api/v1/videos/${videoId}`,
+  ];
+
+  for (const endpoint of invidiousInstances) {
+    try {
+      const res = await fetch(endpoint, {
+        signal: AbortSignal.timeout(3500),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+
+        if (type === 'audio') {
+          const audioFormat =
+            data.adaptiveFormats?.find(
+              (f: any) => f.type?.startsWith('audio') && !!f.url
+            ) ||
+            data.formatStreams?.find(
+              (f: any) => f.type?.startsWith('audio') && !!f.url
+            );
+
+          if (audioFormat?.url) {
+            if (wantJson) {
+              return NextResponse.json({ url: audioFormat.url });
+            }
+            return NextResponse.redirect(audioFormat.url, { status: 307 });
+          }
+        } else {
+          const videoFormat =
+            data.formatStreams?.find(
+              (f: any) => f.type?.includes('mp4') && !!f.url
+            ) ||
+            data.adaptiveFormats?.find(
+              (f: any) => f.type?.includes('mp4') && !!f.url
+            );
+
+          if (videoFormat?.url) {
+            if (wantJson) {
+              return NextResponse.json({ url: videoFormat.url });
+            }
+            return NextResponse.redirect(videoFormat.url, { status: 307 });
           }
         }
       }
